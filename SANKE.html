@@ -1,0 +1,587 @@
+<body>
+  <p id="score"></p>
+  <p align="left">
+
+    <button onclick="init()">Restart</button>
+    &emsp;
+    <button onclick="feasy()">Easy</button>
+    <button onclick="fmedium()">Medium</button>
+    <button onclick="fhard()">Hard</button>
+    &ensp;
+    <button onclick="secondplayer()">2 Players</button>
+    &emsp;
+    <button onclick="halp()">HELP</button>
+  </p>
+  <div><span id="time"></span> </div>
+</body>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, user-scalable=no">
+<script>
+// o codigo de arriba do meta fai que en movil non vallan con retraso os botons
+// porque sin eso o tocar a pantalla se esperan 300 ms para ejecutar o onclick
+// por si se dera un double tap para facer zoom
+var canvas = document.createElement("canvas");
+canvas.width = 400;
+canvas.height = 400;
+
+document.body.appendChild(canvas);
+
+document.addEventListener("keydown",keyPush);
+
+var ctx = canvas.getContext("2d");
+
+const rowSize = 20;
+const colSize = 20;
+ 
+
+setInterval(update,1000/15);
+
+// ---------------------------------
+// VARS
+// ---------------------------------
+
+var gamestart;
+var gameover;
+var points;
+
+var snakePos;
+var snakeDir;
+var snakeTrail;
+var snakeSize;
+
+var applePos;
+var bonusPos;
+
+var walls;
+var gamemode = "easy"; // facil por defecto solo a primerira vez
+var twoplayers;
+var twoMinutes;
+var display;
+var counting;
+var winner;
+var starti;
+
+// ---------------------------------
+// INIT
+// ---------------------------------
+
+function init() {
+  points = 0;
+  snakeDir = {x: 0, y: 0};
+  snakePos = {x: 10, y: 10};
+  applePos = {x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20)};
+  appleDir = {x: 0, y: 0};
+  snakeTrail = [];
+  snakeSize = 5;
+  gamestart = true;
+  gameover = false;
+  if (twoplayers == true){
+    starti = new Date (Date.now());
+  }else{ // para cando e null
+    twoplayers = false;
+  }
+  twoMinutes = 60 * 2;
+  display = document.querySelector('#time');
+  counting = false;
+  winner = "nadie"; 
+}
+init();
+
+// ---------------------------------
+// UPDATE
+// ---------------------------------
+
+function update() {
+
+  document.getElementById("score").innerHTML ="Score: "+ points;
+
+  // PINTAR
+
+  paintBg();
+  if(gamestart == true){
+    if (gamemode == "easy" ){
+      start();
+    }else if (gamemode == "medium"){
+      mediumMode();// ten que estar aqui para mostralo na seleccion de nivel
+    }else if (gamemode == "hard"){
+      snakePos = {x: 5, y: 10};
+      hardMode();
+    }
+  }else if (gameover == true){
+    if(winner == "playerone"){
+      paintPlayerOneWin();
+    }else if(winner == "playertwo"){
+      paintPlayerTwoWin();
+    }else{
+      paintDeath();
+    }
+  } else{
+    if (gamemode == "medium"){
+      mediumMode(); // e aqui para que apareza ingame
+    }else if (gamemode == "hard"){
+      hardMode();
+    }
+    paintSnake();
+    if(twoplayers != true){
+      checkFruitSpawns();
+    }
+    paintApple();
+
+    // esta en update para que se poida cambiar a 2 xojadores en calquer momento
+    if (twoplayers == true && counting == false){ // o counting e para que non se poida chamar a funcion si xa esta contando
+      startTimer(twoMinutes, display);
+    }
+
+    // cada 5 puntos spawnea un bonus que vale 5 puntos co cal se pode encadenar
+    if (points%5 == 0 && points != 0){
+      if(bonusPos == null){
+        bonusPos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+      checkBonusSpawns();
+      paintBonus();
+    }else{
+      bonusPos = null; // para que non quede a fruta invisible x ahi cando non ten que estar
+    }
+  }
+
+  // MOVER
+
+  snakePos.x += snakeDir.x;
+  snakePos.y += snakeDir.y;
+
+  if(snakePos.x < 0 ){
+    snakePos.x = 20  ;
+  } else if (snakePos.x >= 20){
+    snakePos.x= 0;
+  }
+
+  if(snakePos.y < 0 ){
+    snakePos.y = 20 ;
+  } else if (snakePos.y >= 20){
+    snakePos.y= 0;
+  }
+
+  if (twoplayers == true){
+    applePos.x += appleDir.x;
+    applePos.y += appleDir.y;
+    // a fruta non pode salir do marco
+    if(applePos.x < 0 ){
+      applePos.x = 0  ;
+    } else if (applePos.x >= 20){
+      applePos.x= 19;
+    }
+
+    if(applePos.y < 0 ){
+      applePos.y = 0 ;
+    } else if (applePos.y >= 20){
+      applePos.y= 19;
+    }
+  }
+  // ENGORDAR
+  snakeTrail.push({x: snakePos.x, y: snakePos.y});
+
+  if (snakeTrail.length > snakeSize){
+    snakeTrail.splice(0,1);
+  }
+
+  if (snakePos.x == applePos.x && snakePos.y == applePos.y){
+    if(counting == true){
+      gameover = true;
+      winner ="playerone";
+    }else{
+      eat();
+      checkFruitSpawns();
+      paintApple();
+    }
+  }
+
+  if (bonusPos != null && snakePos.x == bonusPos.x && snakePos.y == bonusPos.y){
+    snakeSize= snakeSize +5;
+    points= points +5;
+  }
+
+  // CHOCAR
+  collisions();
+
+}
+// fin do update
+
+function start() {
+  ctx.fillStyle="white";
+  ctx.font = "50px Comic Sans MS";
+  ctx.fillText("Press any key ", 20, 50);
+  ctx.fillText("to start", 20, 100);
+}
+function paintDeath() {
+  ctx.fillStyle="red";
+  ctx.font = "50px  times new Roman";
+  ctx.fillText("YOU DIED", 75, 220);
+}
+function paintPlayerOneWin() {
+  ctx.fillStyle="blue";
+  ctx.font = "50px  times new Roman";
+  ctx.fillText("PLAYER 1 WINS", 20, 220);
+}
+function paintPlayerTwoWin() {
+  ctx.fillStyle="pink";
+  ctx.font = "50px  times new Roman";
+  ctx.fillText("PLAYER 2 WINS", 20, 220);
+}
+function paintBg() {
+  ctx.fillStyle="black";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function paintSnake() {
+  ctx.fillStyle="blue";
+  for(var i=0;i<snakeTrail.length;i++) {
+    ctx.fillRect(snakeTrail[i].x*rowSize,snakeTrail[i].y*colSize, rowSize-2,colSize-2);
+  }
+}
+function paintApple() {
+  ctx.fillStyle ="pink";
+  ctx.fillRect(applePos.x*colSize,applePos.y*rowSize,rowSize-2,colSize-2);
+}
+function paintBonus() {
+  ctx.fillStyle ="yellow";
+  ctx.fillRect(bonusPos.x *colSize,bonusPos.y *rowSize,rowSize-2,colSize-2);
+}
+function eat(){
+  snakeSize++;
+  points++;
+  applePos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+}
+function checkFruitSpawns(){
+  // comprobar que non reapareza dentro da serpiente
+  for(i=0; i<snakeTrail.length; i++){
+    while (snakeTrail[i].x == applePos.x && snakeTrail[i].y == applePos.y){
+        applePos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+  }
+  // que non reapareza nos muros
+  if (gamemode == "medium" ){
+    // ---- esquerda
+    for (var i =2 ; i<6; i++){
+      while(applePos.x == i && (applePos.y == 2 || applePos.y == 17)){
+        applePos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+    // ---- dereita
+    for (var i = 17 ; i > 13; i--){
+      while(applePos.x == i && (applePos.y == 2 || applePos.y == 17)){
+        applePos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+    // | arriba (ESPAÑA)
+    for (var i =2 ; i<6; i++){
+      while((applePos.x == 2 || applePos.x == 17) && applePos.y == i){
+        applePos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+    // | abaixo
+    for (var i = 17 ; i>13; i--){
+      while((applePos.x == 2 || applePos.x == 17) && applePos.y == i){
+        applePos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+  }
+  if (gamemode == "hard" ){
+    while(applePos.x == 10 || applePos.x == 9){
+      applePos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+    }
+  }
+}
+function checkBonusSpawns(){
+
+  // comprobar que non reapareza dentro da serpiente
+  for(i=0; i<snakeTrail.length; i++){
+    while (snakeTrail[i].x == bonusPos.x && snakeTrail[i].y == bonusPos.y){
+        bonusPos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+  }
+  // que non reapareza nos muros
+  if (gamemode == "medium"){
+    // ---- esquerda
+    for (var i =2 ; i<6; i++){
+      while(bonusPos.x == i && (bonusPos.y == 2 || bonusPos.y == 17)){
+        bonusPos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+    // ---- dereita
+    for (var i = 17 ; i > 13; i--){
+      while(bonusPos.x == i && (bonusPos.y == 2 || bonusPos.y == 17)){
+        bonusPos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+    // | arriba (ESPAÑA)
+    for (var i =2 ; i<6; i++){
+      while((bonusPos.x == 2 || bonusPos.x == 17) && bonusPos.y == i){
+        bonusPos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+    // | abaixo
+    for (var i = 17 ; i>13; i--){
+      while((bonusPos.x == 2 || bonusPos.x == 17) && bonusPos.y == i){
+        bonusPos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+      }
+    }
+  }
+  if (gamemode == "hard"){
+    while (bonusPos.x == 10 || bonusPos.x == 9){
+      bonusPos = {x: Math.floor(Math.random() * 20 ), y: Math.floor(Math.random() * 20)};
+    }
+  }
+}
+
+function collisions() {
+  // comprobar si choca
+  for(i=0; i<snakeTrail.length-2; i++){
+    if (snakeSize != 5){ // de todas formas non se pode comer a si misma si solo mide 5
+      if (snakeTrail[i].x == snakeTrail[snakeTrail.length-1].x && snakeTrail[i].y == snakeTrail[snakeTrail.length-1].y){
+        gameover = true;
+      }
+    }
+  }
+  // si choca con muro
+  if (gamemode == "medium"){
+    // ---- esquerda
+    for (var i =2 ; i<6; i++){
+      if(snakePos.x == i && (snakePos.y == 2 || snakePos.y == 17)){
+        gameover = true;
+      }
+    }
+    // ---- dereita
+    for (var i = 17 ; i > 13; i--){
+      if(snakePos.x == i && (snakePos.y == 2 || snakePos.y == 17)){
+        gameover = true;
+      }
+    }
+    // | arriba (ESPAÑA)
+    for (var i =2 ; i<6; i++){
+      if((snakePos.x == 2 || snakePos.x == 17) && snakePos.y == i){
+        gameover = true;
+      }
+    }
+    // | abaixo
+    for (var i = 17 ; i>13; i--){
+      if((snakePos.x == 2 || snakePos.x == 17) && snakePos.y == i){
+        gameover = true;
+      }
+    }
+  }
+  if (gamemode == "hard"){
+    if (snakePos.x == 10 || snakePos.x == 9){
+      gameover = true;
+    }
+  }
+}
+
+// BOTONS
+
+function feasy(){
+  if(gamestart == true){
+    gamemode = "easy";
+  }
+}
+function fmedium(){
+  if(gamestart == true){
+    gamemode = "medium";
+  }
+}
+function fhard(){
+  if(gamestart == true){
+    gamemode = "hard";
+  }
+}
+function secondplayer(){
+  starti = new Date (Date.now());
+  twoplayers = true;
+}
+function halp(){
+  document.getElementById("halp").innerHTML = "Use &#8592 &#8593 &#8595 &#8594 to move the snake <br /> F to reset the game <br /> WASD to control the pig";
+}
+
+function mediumMode(){
+  walls = []; // limpia o array por si se usou en oitro metodo
+  walls = [{x:2,y:2}];
+  ctx.fillStyle = "gray";
+  for (var i = 0; i<80; i = i +20){
+    ctx.fillRect(walls[0].x *colSize +i, walls[0].y *rowSize, rowSize-2, colSize-2);
+    ctx.fillRect(walls[0].x *colSize , walls[0].y *rowSize +i, rowSize-2, colSize-2);
+  }
+  walls2 = [{x: 17, y: 17}];
+  for (var i = 0; i<80; i = i +20){
+    ctx.fillRect(walls2[0].x *colSize -i, walls2[0].y *rowSize, rowSize-2, colSize-2);
+    ctx.fillRect(walls2[0].x *colSize , walls2[0].y *rowSize -i, rowSize-2, colSize-2);
+  }
+  walls3 = [{x: 2, y: 17}];
+  for (var i = 0; i<80; i = i +20){
+    ctx.fillRect(walls3[0].x *colSize +i, walls3[0].y *rowSize, rowSize-2, colSize-2);
+    ctx.fillRect(walls3[0].x *colSize , walls3[0].y *rowSize -i, rowSize-2, colSize-2);
+  }
+  walls4 = [{x: 17, y: 2}];
+  for (var i = 0; i<80; i = i +20){
+    ctx.fillRect(walls4[0].x *colSize -i, walls4[0].y *rowSize, rowSize-2, colSize-2);
+    ctx.fillRect(walls4[0].x *colSize , walls4[0].y *rowSize +i, rowSize-2, colSize-2);
+  }
+}
+
+function hardMode(){
+  walls = []; // limpia o array por si se usou en oitra funcion
+  walls= [{x: 10, y: 0}];
+  ctx.fillStyle = "gray";
+  for (var i = 0; i<400; i = i +20){
+    ctx.fillRect(walls[0].x *colSize , walls[0].y *rowSize+i, rowSize-2, colSize-2);
+  }
+  for (var i = 0; i<400; i = i +20){
+    ctx.fillRect((walls[0].x -1) *colSize , walls[0].y *rowSize+i, rowSize-2, colSize-2);
+  }
+}
+
+// ---------------------------------
+// TIMER
+// ---------------------------------
+
+
+function startTimer(duration, display) {
+  counting = true;
+    var diff,
+        minutes,
+        seconds;
+    function timer() {
+        // get the number of seconds that have elapsed since
+        // startTimer() was called
+        if (gameover == false){
+          diff = duration - (((Date.now() - starti) / 1000) | 0);
+        }
+
+
+        // does the same job as parseInt truncates the float
+        minutes = (diff / 60) | 0;
+        seconds = (diff % 60) | 0;
+
+        minutes = minutes < 10 ? "0" + minutes : minutes;
+        seconds = seconds < 10 ? "0" + seconds : seconds;
+
+        display.textContent = minutes + ":" + seconds;
+
+        if (diff <= 0) {
+
+            gameover = true;
+            winner = "playertwo";
+
+        }
+
+    };
+
+  timer();
+  setInterval(timer, 1000);
+
+      //timer();
+      //setInterval(timer, 1000);
+}
+
+// ---------------------------------
+// READ KEYBOARD
+// ---------------------------------
+function keyPush(evt) {
+gamestart = false; // se quita a pantalla de inicio
+  switch (evt.keyCode) {
+
+    case 37: // LEFT ARROW
+    if(snakeDir.x != 1){
+      snakeDir = {x: -1, y: 0}
+    }
+    break;
+
+    case 38: // UP ARROW
+    if(snakeDir.y != 1){
+      snakeDir = {x: 0, y: -1}
+    }
+    break;
+
+    case 39: // RIGHT ARROW
+    if(snakeDir.x != -1){
+      snakeDir = {x: 1, y:0}
+    }
+    break;
+
+    case 40: // DOWN ARROW
+    if(snakeDir.y != -1){
+      snakeDir = {x: 0, y: 1}
+    }
+    break;
+
+    case 70: // RESPAWN
+    init();
+    break;
+
+    case 65: // A
+    if (twoplayers == true){
+        appleDir = {x: -1, y: 0}
+    }
+    break;
+
+    case 87: // W
+    if (twoplayers == true){
+        appleDir = {x: 0, y: -1}
+    }
+    break;
+
+    case 68: // D
+    if (twoplayers == true){
+        appleDir = {x: 1, y: 0}
+    }
+    break;
+
+    case 83: // S
+    if (twoplayers == true){
+        appleDir = {x: 0, y: 1}
+    }
+    break;
+
+  }
+}
+// ---------------------------------
+// ARROW PAD
+// ---------------------------------
+function upKey(){
+  gamestart = false;
+  if(snakeDir.y != 1){
+    snakeDir = {x: 0, y: -1}
+  }
+}
+function leftKey(){
+  gamestart = false;
+  if(snakeDir.x != 1){
+    snakeDir = {x: -1, y: 0}
+  }
+}
+function rightKey(){
+  gamestart = false;
+  if(snakeDir.x != -1){
+    snakeDir = {x: 1, y:0}
+  }
+}
+function downKey(){
+  gamestart = false;
+  if(snakeDir.y != -1){
+    snakeDir = {x: 0, y: 1}
+  }
+}
+</script>
+<p>
+  &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;
+  <button style="width: 100px; height: 70px; font-size:60px;" onclick="upKey()">&#8679</button>
+</p>
+<p>
+  &ensp;
+  <button style="width: 100px; height: 70px; font-size:60px;" onclick="leftKey()">&#8678</button>
+  &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;
+  <button style="width: 100px; height: 70px; font-size:60px;" onclick="rightKey()">&#8680</button>
+</p>
+<p>
+  &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&ensp;
+  <button style="width: 100px; height: 70px; font-size:60px;" onclick="downKey()">&#8681</button>
+</p>
+<p id="halp"></p>
